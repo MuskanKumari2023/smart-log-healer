@@ -7,9 +7,24 @@ ROOT = Path(__file__).resolve().parent.parent
 SECRETS_PATH = ROOT / ".streamlit" / "secrets.toml"
 
 
+def _groq_key_from_streamlit_secrets() -> str | None:
+    try:
+        import streamlit as st
+
+        value = st.secrets.get("GROQ_API_KEY")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    except Exception:
+        return None
+    return None
+
+
 def get_groq_api_key() -> str | None:
-    """Resolve Groq API key from environment or Streamlit secrets.toml."""
+    """Resolve Groq API key from env, Streamlit Cloud secrets, or secrets.toml."""
     key = os.getenv("GROQ_API_KEY")
+    if key and key.strip():
+        return key.strip()
+    key = _groq_key_from_streamlit_secrets()
     if key:
         return key
     if not SECRETS_PATH.exists():

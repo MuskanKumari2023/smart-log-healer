@@ -138,8 +138,9 @@ def main() -> None:
             st.info("Select a scenario and trigger the pipeline to generate a patch.")
         elif not groq_ready and not scenario.get("cache_demo_variant"):
             st.warning(
-                "Set GROQ_API_KEY via export or `.streamlit/secrets.toml` "
-                "(backend and UI use the same resolver)."
+                "Groq API key is missing. **Local:** `export GROQ_API_KEY=gsk_...` or "
+                "`.streamlit/secrets.toml`. **Streamlit Cloud:** Manage app → Settings → "
+                "Secrets → add `GROQ_API_KEY = \"gsk_...\"` then Reboot."
             )
         else:
             with st.spinner("Analyzing traceback, checking cache, and validating patch safety..."):

@@ -14,7 +14,9 @@ def test_get_groq_api_key_from_secrets_toml(tmp_path, monkeypatch):
     secrets_dir = tmp_path / ".streamlit"
     secrets_dir.mkdir()
     (secrets_dir / "secrets.toml").write_text('GROQ_API_KEY = "gsk_from_toml"\n')
-    with patch("backend.settings.SECRETS_PATH", secrets_dir / "secrets.toml"):
+    with patch("backend.settings.SECRETS_PATH", secrets_dir / "secrets.toml"), patch(
+        "backend.settings._groq_key_from_streamlit_secrets", return_value=None
+    ):
         assert get_groq_api_key() == "gsk_from_toml"
 
 
