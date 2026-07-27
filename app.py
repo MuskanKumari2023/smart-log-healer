@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import streamlit as st
@@ -12,6 +13,16 @@ from backend.tools import get_scenario_source, get_tool_window
 
 ROOT = Path(__file__).resolve().parent
 SCENARIOS_PATH = ROOT / "data" / "scenarios.json"
+
+
+def sync_streamlit_secrets_to_env() -> None:
+    """Streamlit Cloud secrets live in st.secrets; backend reads os.environ."""
+    try:
+        key = st.secrets.get("GROQ_API_KEY")
+        if key:
+            os.environ.setdefault("GROQ_API_KEY", key)
+    except Exception:
+        pass
 
 
 def groq_configured() -> bool:
@@ -52,6 +63,7 @@ def render_pipeline_stages(result) -> None:
 
 
 def main() -> None:
+    sync_streamlit_secrets_to_env()
     st.set_page_config(page_title="Smart Log Healer", layout="wide")
     st.title("Smart Log Analyzer & Self-Healing Service")
     st.caption(

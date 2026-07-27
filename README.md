@@ -218,9 +218,7 @@ Set the Space to **Public** if you want a shareable portfolio link.
 GROQ_API_KEY = "gsk_..."
 ```
 
-5. Deploy. Streamlit Cloud reads `st.secrets`; ensure `GROQ_API_KEY` is also available to the backend — set the same key in Streamlit secrets (Streamlit often maps secrets to env for subprocesses; if pipeline fails, use HF or set env in advanced settings if offered).
-
-**Note:** This project’s backend uses `get_groq_api_key()` (env + `.streamlit/secrets.toml`). On Streamlit Cloud, secrets in the UI populate `st.secrets`; for maximum compatibility, **Hugging Face Spaces** is simpler because secrets become env vars directly.
+5. Deploy. The repo includes `.python-version` (`3.12`) so Cloud does not use Python 3.14 (which breaks `pydantic` install).
 
 ---
 
