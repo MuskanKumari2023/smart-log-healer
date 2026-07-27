@@ -1,0 +1,27 @@
+[
+  {
+    "id": "none_type",
+    "title": "Database Null Pointer (NoneType)",
+    "stack_trace": "request_id=abc123 timestamp=2026-07-18T10:00:00Z\nTypeError: 'NoneType' object is not subscriptable\n  File \"buggy.py\", line 3, in get_user_email\n    return user_record['email']",
+    "source_code": "def get_user_email(user_id: int) -> str:\n    user_record = database_fetch_by_id(user_id)\n    return user_record[\"email\"]"
+  },
+  {
+    "id": "division_by_zero",
+    "title": "Division by Zero Error",
+    "stack_trace": "request_id=req-4421 timestamp=2026-07-18T10:05:00Z\nZeroDivisionError: division by zero\n  File \"buggy.py\", line 2, in calculate_ctr\n    return total_clicks / total_impressions",
+    "source_code": "def calculate_ctr(total_clicks: int, total_impressions: int) -> float:\n    return total_clicks / total_impressions"
+  },
+  {
+    "id": "index_error",
+    "title": "Empty List Index Error",
+    "stack_trace": "request_id=req-8812 timestamp=2026-07-18T10:10:00Z\nIndexError: list index out of range\n  File \"buggy.py\", line 2, in first_item\n    return items[0]",
+    "source_code": "def first_item(items: list):\n    return items[0]"
+  },
+  {
+    "id": "none_type",
+    "cache_demo_variant": true,
+    "title": "Same Error, Different Request ID (Cache Demo)",
+    "stack_trace": "request_id=xyz789 timestamp=2026-07-18T11:30:00Z\nTypeError: 'NoneType' object is not subscriptable\n  File \"buggy.py\", line 3, in get_user_email\n    return user_record['email']",
+    "source_code": "def get_user_email(user_id: int) -> str:\n    user_record = database_fetch_by_id(user_id)\n    return user_record[\"email\"]"
+  }
+]
