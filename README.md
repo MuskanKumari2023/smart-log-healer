@@ -218,7 +218,8 @@ Set the Space to **Public** if you want a shareable portfolio link.
 GROQ_API_KEY = "gsk_..."
 ```
 
-5. Deploy. The repo includes `.python-version` (`3.12`) so Cloud does not use Python 3.14 (which breaks `pydantic` install).
+5. **Advanced settings → Python version:** choose **3.12** (recommended). Community Cloud does **not** read `runtime.txt` or `.python-version` for this; you must pick the version in the UI when deploying (or change it under **Manage app → Settings**). If the build still shows Python 3.14, delete the app and redeploy while selecting 3.12.
+6. Deploy. `requirements.txt` uses `pydantic>=2.12` so installs work on Python 3.14 as well (pre-built `pydantic-core` wheels; older 2.10.x tried to compile Rust and failed on 3.14).
 
 ---
 
