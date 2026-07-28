@@ -1,280 +1,118 @@
----
-title: Smart Log Healer
-emoji: 🩹
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 7860
-pinned: false
-license: mit
----
+# Smart Log Healer
 
-# Smart Log Analyzer & Self-Healing Service
+Automated crash analysis and patch proposal for Python backend errors. The Streamlit app parses stack traces, clusters similar signatures, generates fixes via Groq (Llama 3.3 70B), validates patches with real `pytest` runs, and optionally reviews them with an LLM judge. Cached fixes skip repeat AI calls for near-duplicate crashes.
 
-[![Open in HF Spaces](https://huggingface.co/datasets/huggingface/badges/raw/main/open-in-hf-spaces-sm.svg)](https://huggingface.co/spaces/YOUR_USERNAME/smart-log-healer)
+## How it works
 
-An automated backend utility that intercepts server exceptions, clusters duplicate crash signatures, generates AI patches with tool-based context retrieval, validates fixes with real `pytest` subprocesses, and gates output through an LLM-as-a-Judge review layer.
+1. **Parse** — Extract error type, message, file, and line from a stack trace.
+2. **Normalize** — Strip volatile fields (request IDs, timestamps) to build a stable signature.
+3. **Cache** — On high similarity to a prior signature, return a validated fix without calling the model.
+4. **Generate** — On cache miss, propose a full-file patch with acceptance tests in the prompt; retry on pytest failure or incomplete files.
+5. **Validate** — Run scenario `test_buggy.py` in an isolated temp directory.
+6. **Judge** — Second LLM pass for security and logic (skipped on cache hits).
 
-## Problem
-
-Production services generate repeating crash logs. Manually debugging each trace is slow, and sending every near-duplicate error to an LLM wastes rate limits and money.
-
-## Solution
-
-This project implements a multi-stage self-healing pipeline:
-
-1. Parse stack traces with regex (`O(N)`)
-2. Normalize and cluster signatures with a custom Levenshtein DP engine (`O(M×N)`)
-3. Reuse cached fixes on cache hits (`>= 85%` similarity)
-4. On cache miss, call Groq/Llama with `read_file_lines` tool-calling (acceptance tests included in prompt)
-5. Validate patches in an isolated temp directory via real `pytest`
-6. On pytest failure, retry patch generation once with test output as feedback
-7. Run an LLM-as-a-Judge security/logic review (skipped on cache hits)
-8. Trace LLM calls with Langfuse (optional)
+Optional: Langfuse tracing when keys are configured.
 
 ## Architecture
 
 ```mermaid
-flowchart TB
-    UI[StreamlitUI] --> Pipeline[backend/pipeline.py]
+flowchart LR
+    UI[app.py] --> Pipeline[pipeline.py]
     Pipeline --> Analyzer[analyzer.py]
     Pipeline --> Cache[cache.py]
     Cache -->|miss| AI[ai_client.py]
-    AI --> Tools[tools.py]
     AI --> Validator[validator.py]
     Validator --> Judge[judge.py]
-    Pipeline --> Obs[observability.py]
 ```
-
-## Algorithms used
-
-| Component | Technique |
-|-----------|-----------|
-| Trace parsing | Regex scanner, linear time |
-| Log clustering | Custom Levenshtein dynamic programming |
-| Patch diff UI | `difflib.unified_diff` (LCS-based) |
-| Cache | In-memory hash map |
-| Pipeline | Linear DAG of stages |
 
 ## Tech stack
 
-- Python 3.11+
-- Streamlit
-- Groq API (`llama-3.3-70b-versatile`)
-- pytest
-- Langfuse (optional)
-- Hugging Face Spaces (deployment target)
+Python 3.11+, Streamlit, Groq API, Pydantic, pytest, Langfuse (optional).
 
 ## Local setup
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/MuskanKumari2023/smart-log-healer.git
 cd smart-log-healer
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-**Groq API key** (pick one):
+**Groq API key** ([console.groq.com](https://console.groq.com)) — use one of:
 
 ```bash
-# Option A: environment variable (recommended for local pytest + Streamlit)
-cp .env.example .env   # optional template
-export GROQ_API_KEY="your_key"
+export GROQ_API_KEY="gsk_..."
 streamlit run app.py
 ```
 
-```toml
-# Option B: .streamlit/secrets.toml (Streamlit + backend pipeline both read this)
-GROQ_API_KEY = "your_key"
-```
-
-The backend resolves `GROQ_API_KEY` from the environment first, then from `.streamlit/secrets.toml`, so you do not need both.
-
-Optional observability:
-
-```bash
-export LANGFUSE_PUBLIC_KEY="..."
-export LANGFUSE_SECRET_KEY="..."
-```
-
-Add the same keys to HF Space secrets or `secrets.toml` when deploying. After a pipeline run, open the **View LLM Trace** link in the UI (or your Langfuse project) to inspect latency and token usage.
-
-## Run tests
-
-```bash
-pytest tests/ -v
-```
-
-CI uses mocked AI calls only — no paid API usage on every push.
-
-## Hugging Face Spaces deployment (recommended)
-
-Free CPU hosting, built for Streamlit, matches this repo layout. **Total cost: $0** with Groq free tier.
-
-### Prerequisites
-
-| Item | Where |
-|------|--------|
-| [Hugging Face](https://huggingface.co/join) account | Sign up |
-| [Groq](https://console.groq.com) API key | Required for AI |
-| GitHub account (optional) | Easiest way to connect the Space to your code |
-
-### Option A — Deploy from GitHub (best for updates)
-
-**1. Push code to GitHub**
-
-```bash
-cd smart-log-healer
-git init   # if not already a repo
-git add app.py backend/ data/ sandbox/ tests/ requirements.txt runtime.txt README.md .env.example .gitignore pytest.ini
-git commit -m "Initial commit: Smart Log Healer"
-# Create empty repo on GitHub, then:
-git remote add origin https://github.com/YOUR_USER/smart-log-healer.git
-git branch -M main
-git push -u origin main
-```
-
-Do **not** commit `.streamlit/secrets.toml`, `.env`, or `.venv/` (already in `.gitignore`).
-
-**2. Create the Space**
-
-1. Go to [huggingface.co/new-space](https://huggingface.co/new-space)
-2. **Space name:** `smart-log-healer` (or your choice)
-3. **License:** MIT (or your preference)
-4. **Select SDK:** **Streamlit**
-5. **Space hardware:** **CPU basic** (free tier is enough; pipeline runs pytest + Groq API calls)
-6. **Create Space**
-
-**3. Connect GitHub**
-
-1. In the Space, open **Files and versions** → **Add file** → **Link GitHub repository** (or Settings → Repository → connect repo)
-2. Select your `smart-log-healer` repo and branch `main`
-3. HF builds automatically from `requirements.txt` and runs `streamlit run app.py`
-
-**4. Add secrets (required)**
-
-Space → **Settings** → **Repository secrets** (or **Variables and secrets**):
-
-| Secret name | Value |
-|-------------|--------|
-| `GROQ_API_KEY` | `gsk_...` from Groq console |
-
-Optional (Langfuse tracing):
-
-| `LANGFUSE_PUBLIC_KEY` | `pk-lf-...` |
-| `LANGFUSE_SECRET_KEY` | `sk-lf-...` |
-
-HF exposes these as **environment variables**; the backend reads `GROQ_API_KEY` from the environment.
-
-**5. Restart / rebuild**
-
-After adding secrets: **Settings** → **Factory rebuild** (or push a small commit to trigger rebuild).
-
-**6. Open your app**
-
-`https://huggingface.co/spaces/YOUR_HF_USER/smart-log-healer`
-
-Set the Space to **Public** if you want a shareable portfolio link.
-
----
-
-### Option B — Upload directly to Hugging Face (no GitHub)
-
-1. Create a Streamlit Space as in Option A step 2
-2. Upload project files via the web UI (or `git clone` the Space repo HF gives you and push files)
-3. Ensure root contains: `app.py`, `requirements.txt`, `backend/`, `data/`, `sandbox/`
-4. Add `GROQ_API_KEY` in Space secrets
-5. Wait for build to finish
-
----
-
-### Verify deployment
-
-1. Sidebar shows **Groq API: configured**
-2. Run **Database Null Pointer (NoneType)** → pipeline completes, pytest result shown
-3. Run **Cache Demo** scenario after a successful first run → cache hit
-
-### HF troubleshooting
-
-| Issue | Fix |
-|-------|-----|
-| Build fails on `requirements.txt` | Check build logs; ensure `runtime.txt` says `python-3.11` |
-| `GROQ_API_KEY is not set` | Add secret in Space settings; rebuild |
-| App sleeps / slow first load | Free tier cold start; wake by opening the URL |
-| Cache resets | Expected on HF restart (in-memory cache) |
-| Build timeout | Free tier limits; keep repo lean (no `.venv` in git) |
-
----
-
-## Streamlit Community Cloud (alternative)
-
-1. Push repo to GitHub (same as Option A step 1)
-2. [share.streamlit.io](https://share.streamlit.io) → **New app**
-3. Repo, branch `main`, main file `app.py`
-4. **Advanced settings** → Secrets:
+Or create `.streamlit/secrets.toml` (do not commit):
 
 ```toml
 GROQ_API_KEY = "gsk_..."
 ```
 
-5. **Advanced settings → Python version:** choose **3.12** (recommended). Community Cloud does **not** read `runtime.txt` or `.python-version` for this; you must pick the version in the UI when deploying (or change it under **Manage app → Settings**). If the build still shows Python 3.14, delete the app and redeploy while selecting 3.12.
-6. Deploy. `requirements.txt` uses `pydantic>=2.12` so installs work on Python 3.14 as well (pre-built `pydantic-core` wheels; older 2.10.x tried to compile Rust and failed on 3.14).
+Resolution order: environment variable → Streamlit secrets (Cloud) → `.streamlit/secrets.toml`.
 
----
+**Tests:**
 
-## What gets deployed
+```bash
+pytest tests/ -v
+```
 
-| Included | Not deployed |
-|----------|----------------|
-| Streamlit UI (`app.py`) | Your local `.venv` |
-| `backend/` pipeline | `.streamlit/secrets.toml` (use host secrets) |
-| `sandbox/` scenarios + pytest | Local-only cache (resets on restart) |
-| `data/scenarios.json` | |
+CI uses mocked AI calls; no Groq usage on every push.
 
-External services at runtime: **Groq API** (required), **Langfuse** (optional).
+## Deploy on Streamlit Community Cloud
 
----
+1. Push this repository to GitHub (`main`, entrypoint `app.py` at repo root).
+2. Open [share.streamlit.io](https://share.streamlit.io) → **Create app** → select the repo, branch `main`, main file `app.py`.
+3. **Advanced settings → Secrets:**
 
-## Short checklist
+```toml
+GROQ_API_KEY = "gsk_..."
+```
 
-- [ ] Code on GitHub (or uploaded to HF)
-- [ ] HF Space SDK = Streamlit, `app.py` at repo root
-- [ ] `GROQ_API_KEY` in Space secrets
-- [ ] Build succeeded (green)
-- [ ] Public URL works and one scenario runs end-to-end
+4. **Advanced settings → Python version:** **3.12** (recommended). Community Cloud does not use `runtime.txt` or `.python-version`; set the version in the UI. If the build uses Python 3.14, delete the app and redeploy with 3.12 selected, or rely on current `requirements.txt` (Pydantic 2.13+ ships wheels for 3.14).
+5. Deploy, then **Reboot** after changing secrets.
 
-## Demo flow
+**Verify:** Sidebar shows **Groq API: configured**. Run **Database Null Pointer (NoneType)** and confirm pipeline stages, pytest result, and proposed patch.
 
-1. Run **Database Null Pointer (NoneType)** — cache miss, AI patch (with test-aware prompt), pytest, judge
-2. Run **Same Error, Different Request ID (Cache Demo)** — cache hit, AI skipped, judge skipped
-3. Use **Custom stack trace** in the sidebar to vary `request_id` while keeping the same bug
-4. Open the Langfuse trace link to inspect token usage and latency (if configured)
+**Secrets on Cloud:** Use the dashboard only — not a committed `secrets.toml`.
+
+**Throttling:** Free tier may temporarily limit CPU after heavy rebuilds; the app still runs but can feel slower until the limit expires.
+
+## Optional: Langfuse
+
+```bash
+export LANGFUSE_PUBLIC_KEY="pk-lf-..."
+export LANGFUSE_SECRET_KEY="sk-lf-..."
+export LANGFUSE_HOST="https://cloud.langfuse.com"
+```
+
+On Streamlit Cloud, add the same keys in **Secrets**. The UI shows a trace link when a run is traced.
+
+## Demo scenarios
+
+| Scenario | What to observe |
+|----------|-----------------|
+| Database Null Pointer (NoneType) | Cache miss, AI patch, pytest, judge |
+| Same Error, Different Request ID | Cache hit; AI and judge skipped |
+| Custom stack trace | Paste your own log; same pipeline |
+
+Use **Clear fix cache** in the sidebar to force a fresh AI run.
 
 ## Guardrails
 
-- Patches are written only inside per-run temp directories
-- Real `pytest` subprocess captures `stdout`, `stderr`, and exit codes
-- Cache stores fixes only after pytest pass and judge approval
-- No auto-merge or GitHub PR creation in v1
+- Patches are applied only in per-run temp directories, not your real repo.
+- Cache entries are stored only after pytest passes and the judge approves (when the judge runs).
+- No automatic merge or pull request creation in this version.
 
 ## Limitations
 
-- Mock scenarios only (no live production webhook yet)
-- In-memory cache (Redis recommended for production)
-- Docker-in-Docker is not used on HF free tier; subprocess isolation is the deliberate v1 trade-off
-- GitHub PR creation is Phase 2
+- Demo scenarios in `sandbox/` only (no live log ingestion).
+- In-memory cache (resets when the app restarts).
+- Human review is expected before applying any patch to production code.
 
-## Cost
+## License
 
-- Groq free tier for patch generation and judge review
-- Langfuse hobby tier for tracing
-- Hugging Face Spaces free CPU tier for hosting
-
-Total build and demo cost: **₹0** with free-tier services.
-
-## Resume bullets
-
-- Architected a multi-stage self-healing pipeline in Python that parses stack traces, retrieves code context via LLM function calling, and validates AI patches through isolated pytest subprocesses and an LLM-as-a-Judge security gate.
-- Implemented a custom Log Signature Clustering engine using Dynamic Programming (Levenshtein edit distance) to deduplicate crash traces and skip redundant LLM calls on similar errors.
-- Integrated Langfuse observability to trace per-run LLM latency, token usage, and prompt-response paths on a zero-cost Groq/Llama inference stack.
+MIT
