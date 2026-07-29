@@ -2,6 +2,8 @@
 
 Automated crash analysis and patch proposal for Python backend errors. The Streamlit app parses stack traces, clusters similar signatures, generates fixes via Groq (Llama 3.3 70B), validates patches with real `pytest` runs, and optionally reviews them with an LLM judge. Cached fixes skip repeat AI calls for near-duplicate crashes.
 
+![Smart Log Healer app screenshot](docs/assets/app-screenshot.png)
+
 ## How it works
 
 1. **Parse** — Extract error type, message, file, and line from a stack trace.
